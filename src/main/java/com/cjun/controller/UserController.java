@@ -3,9 +3,11 @@ package com.cjun.controller;
 
 import com.cjun.dto.LoginFormDTO;
 import com.cjun.dto.Result;
+import com.cjun.entity.User;
 import com.cjun.entity.UserInfo;
 import com.cjun.service.IUserInfoService;
 import com.cjun.service.IUserService;
+import com.cjun.utils.UserHolder2;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,8 +38,9 @@ public class UserController {
      */
     @PostMapping("code")
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
-        // TODO 发送短信验证码并保存验证码
-        return Result.fail("功能未完成");
+        //发送短信验证码并保存验证码
+
+        return userService.sendCode(phone, session);
     }
 
     /**
@@ -46,8 +49,8 @@ public class UserController {
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){
-        // TODO 实现登录功能
-        return Result.fail("功能未完成");
+        // 实现登录功能
+        return userService.login(loginForm, session);
     }
 
     /**
@@ -62,8 +65,9 @@ public class UserController {
 
     @GetMapping("/me")
     public Result me(){
-        // TODO 获取当前登录的用户并返回
-        return Result.fail("功能未完成");
+        //获取当前登录的用户并返回
+        User user = UserHolder2.getUser();
+        return Result.ok(user);
     }
 
     @GetMapping("/info/{id}")
