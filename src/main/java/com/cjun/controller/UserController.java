@@ -3,11 +3,12 @@ package com.cjun.controller;
 
 import com.cjun.dto.LoginFormDTO;
 import com.cjun.dto.Result;
+import com.cjun.dto.UserDTO;
 import com.cjun.entity.User;
 import com.cjun.entity.UserInfo;
 import com.cjun.service.IUserInfoService;
 import com.cjun.service.IUserService;
-import com.cjun.utils.UserHolder2;
+import com.cjun.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,7 +67,7 @@ public class UserController {
     @GetMapping("/me")
     public Result me(){
         //获取当前登录的用户并返回
-        User user = UserHolder2.getUser();
+        UserDTO user = UserHolder.getUser();
         return Result.ok(user);
     }
 

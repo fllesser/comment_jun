@@ -1,9 +1,11 @@
 package com.cjun.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cjun.dto.LoginFormDTO;
 import com.cjun.dto.Result;
+import com.cjun.dto.UserDTO;
 import com.cjun.entity.User;
 import com.cjun.mapper.UserMapper;
 import com.cjun.service.IUserService;
@@ -38,7 +40,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String code = RandomUtil.randomNumbers(6);
         // 4. 保存验证码到session
         session.setAttribute("code", code);
-        // TODO 发送验证码...跳过
+        // 发送验证码...跳过
         log.debug("发送短信验证码成功, 验证码为: {}", code);
         // 5. 返回ok
         return Result.ok();
@@ -67,7 +69,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user = createUserWithPhone(phone);
         }
         //7. 保存用户到session中
-        session.setAttribute("user", user);
+        session.setAttribute("user", BeanUtil.copyProperties(user, UserDTO.class));
         return Result.ok();
     }
 
