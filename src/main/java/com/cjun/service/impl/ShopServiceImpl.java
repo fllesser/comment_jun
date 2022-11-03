@@ -9,10 +9,13 @@ import com.cjun.service.IShopService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 
-import static com.cjun.utils.RedisConstants.CACHE_SHOP_KEY;
+import java.util.concurrent.TimeUnit;
+
+import static com.cjun.utils.RedisConstants.*;
 
 /**
  * <p>
@@ -39,14 +42,36 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             Shop shop = JSONUtil.toBean(shopJson, Shop.class);
             return Result.ok(shop);
         }
+        // 判断命中的是否是空对象
+        if (shopJson != null) {
+            // 空对象
+            // 返回一个错误信息
+            return Result.fail("ShopService 缓存空对象");
+        }
+
         //4. 不存在, 根据id查询数据库
         Shop shop = getById(id);
         //5. 不存在, 返回错误
         if (shop == null) {
+            // 缓存空对象
+            stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             return Result.fail("店铺不存在! ");
         }
         //6. 存在, 写入redis, 返回
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shop));
         return Result.ok(shop);
+    }
+
+    @Override
+    @Transactional
+    public Result update(Shop shop) {
+        //1. 更新数据库
+        updateById(shop);
+        //2. 删除缓存
+        if (shop.getId() == null) {
+            return Result.fail("店铺id不能为空");
+        }
+        stringRedisTemplate.delete(CACHE_SHOP_KEY + shop.getId());
+        return Result.ok();
     }
 }
