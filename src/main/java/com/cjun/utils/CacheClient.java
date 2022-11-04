@@ -33,7 +33,7 @@ public class CacheClient {
     }
 
     /**
-     * 逻辑过期写入缓存
+     * 逻辑过期写入缓存, 其实就是写入热点key
      */
     public void setWithLogicalExpire(String key, Object value, Long expireTime, TimeUnit unit) {
         RedisData redisData = new RedisData();
@@ -43,10 +43,10 @@ public class CacheClient {
     }
 
     public <R, ID> R queryWithPassThrough(
-            String keyPrefix, ID id, Class<R> type,
+            String rKeyPrefix, ID id, Class<R> type,
             Function<ID, R>/*代表有参有返回值的函数*/ dbFallback,
             Long time, TimeUnit unit) {
-        String key = keyPrefix + id;
+        String key = rKeyPrefix + id;
         //1. 从Redis查询缓存
         String json = stringRedisTemplate.opsForValue().get(key);
         //2. 判断是否存在
@@ -75,23 +75,33 @@ public class CacheClient {
 
     /**
      * 利用逻辑过期解决缓存击穿问题
+     * @param rKeyPrefix r_key前缀
+     * @param id id
+     * @param type 实体类.class
+     * @param dbFallback 查询数据库的方法
+     * @param expireTime 逻辑过期时间
+     * @param unit 时间单位
+     * @param <R>  实体类类型
+     * @param <ID> id类型
+     * @return R
      */
     public <R, ID> R queryWithLogicalExpire(
-            String keyPrefix, ID id, Class<R> type,
+            String rKeyPrefix, ID id, Class<R> type,
             Function<ID, R> dbFallback,
             Long expireTime, TimeUnit unit
             ) {
-        String rKey = keyPrefix + id;
+        String rKey = rKeyPrefix + id;
         //1. 从Redis查询缓存
         String json = stringRedisTemplate.opsForValue().get(rKey);
         //2. 判断是否存在
         if (StrUtil.isBlank(json)) {
             //3. 未命中, 返回空, 说明不是热点key, 需手动添加
+            // this.setWithLogicalExpire(rKey, dbFallback.apply(id), expireTime, unit);
             return null;
         }
         //4. 命中缓存, 判断是否过期
         RedisData redisData = JSONUtil.toBean(json, RedisData.class);
-        //这里反序列化回来的data属性由于是Object类, 所以为JSONObject, 而不是R
+        // 这里反序列化回来的data属性由于是Object类, 所以为JSONObject, 而不是R
         R r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
         if (redisData.getExpireTime().isAfter(LocalDateTime.now())) {
             //5. 没有过期, 直接返回
@@ -103,7 +113,15 @@ public class CacheClient {
         //7. 获取锁成功, 开启独立线程查询数据库
         if (isLock) {
             log.info("获取锁成功");
-            CACHE_REBUILD_EXECUTOR.submit(() -> this.setWithLogicalExpire(rKey, dbFallback, expireTime, unit));
+            CACHE_REBUILD_EXECUTOR.submit(() -> {
+                try {
+                    this.setWithLogicalExpire(rKey, dbFallback.apply(id), expireTime, unit);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    unlock(lockKey);
+                }
+            });
         }
         //8. 返回旧数据
         return r;

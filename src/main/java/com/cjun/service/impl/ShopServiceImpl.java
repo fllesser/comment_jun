@@ -184,7 +184,15 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 //        //7. 获取锁成功, 开启独立线程查询数据库
 //        if (isLock) {
 //            log.info("获取锁成功");
-//            CACHE_REBUILD_EXECUTOR.submit(() -> saveShop2Redis(id, CACHE_SHOP_TTL));
+//            CACHE_REBUILD_EXECUTOR.submit(() -> {
+//                try {
+//                    saveShop2Redis(id, CACHE_SHOP_TTL);
+//                } catch (Exception e) {
+//                    throw new RuntimeException(e);
+//                } finally {
+//                    unlock(lockKey);
+//                }
+//            });
 //        }
 //        //8. 返回旧数据
 //        return shop;
