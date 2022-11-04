@@ -33,13 +33,13 @@ public class CacheClient {
     }
 
     /**
-     * 逻辑过期写入缓存, 其实就是写入热点key
+     * 逻辑过期写入缓存, 其实就是写入热点key, 带逻辑过期时间的永久key
      */
     public void setWithLogicalExpire(String key, Object value, Long expireTime, TimeUnit unit) {
         RedisData redisData = new RedisData();
         redisData.setExpireTime(LocalDateTime.now().plusSeconds(unit.toSeconds(expireTime)));
         redisData.setData(value);
-        this.set(key, JSONUtil.toJsonStr(redisData), expireTime, unit);
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
     }
 
     public <R, ID> R queryWithPassThrough(
@@ -96,7 +96,7 @@ public class CacheClient {
         //2. 判断是否存在
         if (StrUtil.isBlank(json)) {
             //3. 未命中, 返回空, 说明不是热点key, 需手动添加
-            // this.setWithLogicalExpire(rKey, dbFallback.apply(id), expireTime, unit);
+            //this.setWithLogicalExpire(rKey, dbFallback.apply(id), expireTime, unit);
             return null;
         }
         //4. 命中缓存, 判断是否过期
@@ -108,7 +108,7 @@ public class CacheClient {
             return r;
         }
         //6. 过期, 尝试获取互斥锁
-        String lockKey = LOCK_KEY + r.getClass().toString().toLowerCase() + ":" + id;
+        String lockKey = LOCK_KEY + r.getClass().getSimpleName().toLowerCase() + ":" + id;
         boolean isLock = tryLock(lockKey);
         //7. 获取锁成功, 开启独立线程查询数据库
         if (isLock) {
