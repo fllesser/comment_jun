@@ -108,7 +108,7 @@ public class CacheClient {
             return r;
         }
         //6. 过期, 尝试获取互斥锁
-        String lockKey = LOCK_KEY + r.getClass().getSimpleName().toLowerCase() + ":" + id;
+        String lockKey = LOCK_KEY_PREFIX + r.getClass().getSimpleName().toLowerCase() + ":" + id;
         boolean isLock = tryLock(lockKey);
         //7. 获取锁成功, 开启独立线程查询数据库
         if (isLock) {

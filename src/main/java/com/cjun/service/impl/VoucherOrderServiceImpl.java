@@ -8,8 +8,10 @@ import com.cjun.service.ISeckillVoucherService;
 import com.cjun.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cjun.utils.RedisIdWorker;
+import com.cjun.utils.SimpleRedisLock;
 import com.cjun.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private ISeckillVoucherService seckillVoucherService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Resource
     private RedisIdWorker redisIdWorker;
@@ -55,11 +60,28 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
         //5. 一人一单
         Long userId = UserHolder.getUser().getId();
-        synchronized (userId.toString().intern()) {
-            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
-            //return this.createVoucherOrder(voucherId);
-            return proxy.createVoucherOrder(userId, voucherId);
+        //6. 创建锁对象
+        SimpleRedisLock simpleRedisLock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        //7. 获取锁
+        boolean isLock = simpleRedisLock.tryLock(1200);
+        //8. 判断是否成功获取锁
+        if (!isLock) {
+            // 获取锁失败, 返回错误, 或者尝试
+            return Result.fail("非法请求! 不允许重复下单");
         }
+        // 获取锁成功
+        try {
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(userId, voucherId);
+        } finally {
+            simpleRedisLock.unlock();
+        }
+//        synchronized 集群jvm锁不住(哈哈
+//        synchronized (userId.toString().intern()) {
+//            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+//            //return this.createVoucherOrder(voucherId);
+//            return proxy.createVoucherOrder(userId, voucherId);
+//        }
     }
 
     @Transactional
@@ -73,7 +95,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         //5.2 判断是否存在
         if (count > 0) {
             //用户已经购买过了
-            return Result.fail("用户已经购买过一次! ");
+            return Result.fail("你已经购买过一次! ");
         }
 
         //6. 扣减库存
