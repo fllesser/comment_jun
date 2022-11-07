@@ -10,6 +10,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cjun.utils.RedisIdWorker;
 import com.cjun.utils.SimpleRedisLock;
 import com.cjun.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+
+import static com.cjun.utils.RedisConstants.LOCK_ORDER_KEY;
 
 /**
  * <p>
@@ -34,6 +38,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private RedissonClient redissonClient;
 
     @Resource
     private RedisIdWorker redisIdWorker;
@@ -61,9 +68,11 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         //5. 一人一单
         Long userId = UserHolder.getUser().getId();
         //6. 创建锁对象
-        SimpleRedisLock simpleRedisLock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        //SimpleRedisLock simpleRedisLock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        RLock lock = redissonClient.getLock(LOCK_ORDER_KEY + userId);
         //7. 获取锁
-        boolean isLock = simpleRedisLock.tryLock(1200);
+        //boolean isLock = simpleRedisLock.tryLock(1200);
+        boolean isLock = lock.tryLock();
         //8. 判断是否成功获取锁
         if (!isLock) {
             // 获取锁失败, 返回错误, 或者尝试
@@ -74,7 +83,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(userId, voucherId);
         } finally {
-            simpleRedisLock.unlock();
+            //simpleRedisLock.unlock();
+            //simpleRedisLock.unlockWithLua();
+            //simpleRedisLock.unlockWithWatch();
+            lock.unlock();
         }
 //        synchronized 集群jvm锁不住(哈哈
 //        synchronized (userId.toString().intern()) {
