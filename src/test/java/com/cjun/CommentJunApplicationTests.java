@@ -109,4 +109,17 @@ class CommentJunApplicationTests {
         }
     }
 
+    @Test
+    void testString() {
+        String s1 = "java";
+        System.out.println(s1.hashCode());
+        s1 = "jvav";
+        System.out.println(s1.hashCode());
+        String s2 = new String(s1);
+        System.out.println(s2.hashCode());
+        s2 = "java";
+        System.out.println(s2.hashCode());
+    }
+
+
 }
