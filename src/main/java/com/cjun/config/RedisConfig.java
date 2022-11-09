@@ -34,4 +34,18 @@ public class RedisConfig {
         config.useSingleServer().setAddress("redis://127.0.0.1:6379").setPassword("261806594zyj");
         return Redisson.create(config);
     }
+
+    //@Bean
+    public RedissonClient redissonClient2() {
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6380").setPassword("261806594zyj");
+        return Redisson.create(config);
+    }
+
+    //@Bean
+    public RedissonClient redissonClient3() {
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6381").setPassword("261806594zyj");
+        return Redisson.create(config);
+    }
 }

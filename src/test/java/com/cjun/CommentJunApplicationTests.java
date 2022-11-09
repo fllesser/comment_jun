@@ -24,6 +24,10 @@ class CommentJunApplicationTests {
 
     @Resource
     private RedissonClient redissonClient;
+    @Resource
+    private RedissonClient redissonClient2;
+    @Resource
+    private RedissonClient redissonClient3;
 
     private final ExecutorService es = Executors.newFixedThreadPool(500);
 
@@ -71,12 +75,15 @@ class CommentJunApplicationTests {
 
     private RLock lock;
 
-    @BeforeEach
+    //@BeforeEach
     void setUp() {
-        lock = redissonClient.getLock("order");
+        RLock rLock = redissonClient.getLock("order");
+        RLock rLock2 = redissonClient2.getLock("order");
+        RLock rLock3 = redissonClient3.getLock("order");
+        redissonClient.getMultiLock(rLock, rLock2, rLock3);
     }
 
-    @Test
+    // @Test
     void method1() {
         //尝试获取锁
         boolean isLock = lock.tryLock();
@@ -109,7 +116,7 @@ class CommentJunApplicationTests {
         }
     }
 
-    @Test
+    //@Test
     void testString() {
         String s1 = "java";
         System.out.println(s1.hashCode());
@@ -120,6 +127,7 @@ class CommentJunApplicationTests {
         s2 = "java";
         System.out.println(s2.hashCode());
     }
+
 
 
 }
