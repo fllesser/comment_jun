@@ -13,12 +13,18 @@ import com.cjun.utils.UserHolder;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import static com.cjun.utils.RedisConstants.LOCK_ORDER_KEY;
 
@@ -42,6 +48,21 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedissonClient redissonClient;
 
+    /**
+     * lua脚本
+     */
+    private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
+    static {
+        SECKILL_SCRIPT = new DefaultRedisScript<>();
+        SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
+        SECKILL_SCRIPT.setResultType(Long.class);
+    }
+
+    /**
+     * 阻塞队列
+     */
+    private final BlockingQueue<VoucherOrder> orderTasks = new ArrayBlockingQueue<>(1024 * 1024);
+
     @Resource
     private RedisIdWorker redisIdWorker;
 
@@ -49,6 +70,40 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Override
     public Result seckillVoucher(Long voucherId) {
+        //获取用户
+        Long userId = UserHolder.getUser().getId();
+        //1. 执行lua脚本
+        Long result = stringRedisTemplate.execute(
+                SECKILL_SCRIPT,
+                Collections.emptyList(),
+                voucherId.toString(),
+                userId.toString());
+
+        //2. 判断结果为0
+        assert result != null;
+        int r = result.intValue();
+        if (r != 0) {
+            //2.1 不为0,代表没有购买资格
+            return Result.fail( r == 1 ? "库存不足" : "不能重复下单");
+        }
+        //2.2 为0, 把下单信息保存到阻塞队列
+        VoucherOrder voucherOrder = new VoucherOrder();
+        //2.3 订单id
+        long orderId = redisIdWorker.nextId("order");
+        voucherOrder.setId(orderId);
+        //2.4 用户id
+        voucherOrder.setUserId(userId);
+        //2.5 代金劵id
+        voucherOrder.setVoucherId(voucherId);
+        //2.6 放入阻塞队列
+        orderTasks.add(voucherOrder);
+
+        //3. 返回订单id
+        return Result.ok(orderId);
+    }
+
+    @Deprecated
+    public Result seckillVoucherOld(Long voucherId) {
         //1. 查询优惠券
         SeckillVoucher voucher= seckillVoucherService.getById(voucherId);
         //2. 判断秒杀是否开始
