@@ -1,8 +1,5 @@
 package com.cjun.utils;
 
-/**
- * @author 虎哥
- */
 public abstract class RegexPatterns {
     /**
      * 手机号正则
